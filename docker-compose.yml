@@ -29,4 +29,4 @@ services:
       - "34400:34400"  # xTeVe web interface
     restart: unless-stopped
     depends_on:
-      - xteve-bridge 
+      - plexrelay

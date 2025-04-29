@@ -27,9 +27,11 @@ SPORTS_CATEGORIES = ['NBA', 'NFL', 'MLB', 'NHL']
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Globals for Caching and Scheduling ---
+from threading import Lock # Import Lock for thread safety
 cached_data = None # Stores the response from METADATA_API_URL
 cached_mpegts_urls = {} # Cache for MPEG-TS URLs
 last_fetch_time = 0 # Timestamp of the last successful fetch
+fetch_lock = Lock() # Lock to ensure thread-safe access to shared resources
 scheduler = BackgroundScheduler(daemon=True) # Runs fetch_and_cache_data periodically
 app = Flask(__name__) # The Flask web application instance
 
@@ -122,59 +124,39 @@ def fetch_and_cache_data():
     """Fetches the main stream list data from the metadata API and updates the cache."""
     global cached_data, last_fetch_time, cached_mpegts_urls
     # Use a lock to prevent concurrent fetches, ensuring data consistency
-    with fetch_lock:
-        logging.info(f"Attempting to fetch main stream list from {METADATA_API_URL}")
-        headers = {"User-Agent": USER_AGENT}
-        try:
-            # Make the GET request to the main stream list API
-            response = requests.get(METADATA_API_URL, headers=headers, timeout=20)
-            response.raise_for_status()
-            data = response.json()
+    global cached_data, last_fetch_time, cached_mpegts_urls
 
-            # Check the API's success flag
-            if data.get("success"):
-                # Filter for sports categories and remove expired games
-                current_time = time.time()
-                filtered_streams = []
-                new_mpegts_urls = {}
-                
-                for category in data.get('streams', []):
-                    category_name = category.get('category', '')
-                    if category_name in SPORTS_CATEGORIES:
-                        # Filter out expired games
-                        valid_streams = [
-                            stream for stream in category.get('streams', [])
-                            if stream.get('ends_at', 0) > current_time
-                        ]
-                        if valid_streams:
-                            # Fetch and cache MPEG-TS URLs for valid streams
-                            for stream in valid_streams:
-                                stream_id = stream.get('id')
-                                if stream_id:
-                                    mpegts_url = get_mpegts_url(stream_id, AUTH_TOKEN)
-                                    if mpegts_url:
-                                        new_mpegts_urls[str(stream_id)] = mpegts_url
-                            
-                            category['streams'] = valid_streams
-                            filtered_streams.append(category)
-                
-                data['streams'] = filtered_streams
-                cached_data = data
-                cached_mpegts_urls = new_mpegts_urls
-                last_fetch_time = current_time
-                logging.info(f"Successfully fetched and cached sports streams. {len(filtered_streams)} categories found.")
-            else:
-                # Log if the API indicates failure
-                logging.error(f"Main stream list API indicated failure: {data.get('READ_ME', 'No message')}")
-        except requests.exceptions.Timeout:
-            # Handle timeout errors specifically for the main list fetch
-            logging.error(f"Timeout error fetching main stream list from {METADATA_API_URL}")
-        except requests.exceptions.RequestException as e:
-            # Handle other request errors for the main list fetch
-            logging.error(f"HTTP error fetching main stream list: {e}")
-        except Exception as e:
-            # Handle unexpected errors during the main list fetch
-             logging.error(f"Unexpected error during main stream list data fetch: {e}")
+    try:
+        logging.info("Fetching main stream list data from API...")
+        headers = {
+            "Auth": AUTH_TOKEN,
+            "User-Agent": USER_AGENT
+        }
+        response = requests.get(METADATA_API_URL, headers=headers, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("success"):
+            cached_data = data
+            last_fetch_time = time.time()
+            cached_mpegts_urls = {}  # Clear MPEG-TS URL cache
+
+            # Pre-fetch MPEG-TS URLs for all streams
+            for category in cached_data.get('streams', []):
+                for stream in category.get('streams', []):
+                    stream_id = stream.get('id')
+                    if stream_id:
+                        mpegts_url = get_mpegts_url(stream_id, AUTH_TOKEN)
+                        if mpegts_url:
+                            cached_mpegts_urls[str(stream_id)] = mpegts_url
+
+            logging.info("Successfully updated cached data and MPEG-TS URLs.")
+        else:
+            logging.error(f"API response indicated failure: {data}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching main stream list data: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error during data fetch: {e}")
 
 
 # --- Flask Routes ---
