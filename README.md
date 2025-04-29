@@ -3,29 +3,26 @@
 A Flask-based service that bridges the PPV.wtf API to provide sports streams in M3U and XMLTV formats for XTeVe and other IPTV players.
 
 ## Quick Start
+**⚠️ Installation Note**
+This installation guide was designed for a TrueNAS Scale docker intallation.
+The code will work fine on other systems but the installation instructions will be different.
 
 1. Create the directory structure:
 ```bash
-mkdir -p /mnt/<your_pool>/sports_m3u/app
-cd /mnt/<your_pool>/sports_m3u
+mkdir -p /mnt/<your_pool>/xteve_bridge/app
 ```
 
-2. Create docker-compose.yml:
-```bash
-nano docker-compose.yml
-```
-
-3. Paste the following content:
+2. Paste the following content:
 ```yaml
 version: "3.9"
 services:
   xteve-bridge:
     image: python:3.11-slim
-    container_name: sports_m3u
+    container_name: xteve_bridge
     ports:
       - "8880:8880"
     volumes:
-      - /mnt/<your_pool>/sports_m3u/app:/app
+      - /mnt/<your_pool>/xteve_bridge/app:/app
     working_dir: /app
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
@@ -34,27 +31,29 @@ services:
              python app.py"
     restart: unless-stopped
 ```
+3. cd To the installation directory
+`cd /mnt/<your_pool>/xteve_bridge`
 
-4. Create app.py:
+3. Create app.py:
 ```bash
 nano app.py
 ```
 
-5. Paste the Python code into app.py
+4. Paste the Python code into app.py
 
-6. Click Ctrl + O, Enter, Ctrl + X to save and exit
+5. Click Ctrl + O, Enter, Ctrl + X to save and exit
 
-7. Start the container:
+6. Start the container:
 ```bash
 docker-compose up -d
 ```
 
-8. Access the following endpoints:
+7. Access the following endpoints:
 - Status page: http://localhost:8880
 - M3U Playlist: http://localhost:8880/playlist.m3u
 - XMLTV EPG: http://localhost:8880/epg.xml
 
-9. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
+8. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
 You should see something like the following
 ```m3u
 #EXTM3U
