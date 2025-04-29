@@ -10,8 +10,8 @@ A complete IPTV solution that combines a Python bridge service with xTeVe to pro
 
 1. Create the directory structure:
 ```bash
-mkdir -p /mnt/<your_pool>/plexrelay/bridge
-mkdir -p /mnt/<your_pool>/xteve/config
+mkdir -p /mnt/<your_pool>/plexrelay
+mkdir -p /mnt/<your_pool>/xteve
 ```
 
 2. Paste the following content:
@@ -25,7 +25,7 @@ services:
     ports:
       - "8880:8880"
     volumes:
-      - /mnt/<your_pool>/plexrelay/bridge:/app
+      - /mnt/<your_pool>/plexrelay:/app
     working_dir: /app
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
@@ -42,7 +42,7 @@ services:
       - PGID=568  # change to match your group ID
       - TZ=America/Vancouver  # change to your timezone
     volumes:
-      - /mnt/<your_pool>/xteve/config:/config
+      - /mnt/<your_pool>/xteve:/config
     ports:
       - "34400:34400"  # xTeVe web interface
     restart: unless-stopped
@@ -51,7 +51,7 @@ services:
 ```
 
 4. Navigate to the installation directory using shell
-`cd /mnt/<your_pool>/plexrelay/bridge`
+`cd /mnt/<your_pool>/plexrelay`
 
 3. Create app.py:
 ```bash
