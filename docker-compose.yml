@@ -2,18 +2,12 @@ version: "3.9"
 
 services:
   plexrelay:
-    image: python:3.11-slim
+    image: ghcr.io/oliverp/plexrelay:latest  # We'll need to set this up
     container_name: plexrelay-bridge
     ports:
       - "8880:8880"
-    volumes:
-      - /mnt/<your_pool>/plexrelay:/app
-    working_dir: /app
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
-    command: >
-      sh -c "pip install flask requests &&
-             python app.py"
     restart: unless-stopped
 
   xteve:
@@ -24,7 +18,7 @@ services:
       - PGID=568  # change to match your group ID
       - TZ=America/Vancouver  # change to your timezone
     volumes:
-      - /mnt/<your_pool>/xteve:/config
+      - ./xteve:/config
     ports:
       - "34400:34400"  # xTeVe web interface
     restart: unless-stopped

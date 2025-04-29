@@ -33,28 +33,21 @@ Before you begin, ensure you have:
 
 1. Create the directory structure:
 ```bash
-mkdir -p /mnt/<your_pool>/plexrelay
-mkdir -p /mnt/<your_pool>/xteve
+mkdir /mnt/<yourpool>/plexrelay && cd plexrelay
 ```
 
-2. Paste the following content:
+2. Create a docker-compose.yml file:
 ```yaml
 version: "3.9"
 
 services:
   plexrelay:
-    image: python:3.11-slim
+    image: ghcr.io/oliverp/plexrelay:latest
     container_name: plexrelay-bridge
     ports:
       - "8880:8880"
-    volumes:
-      - /mnt/<your_pool>/plexrelay:/app
-    working_dir: /app
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
-    command: >
-      sh -c "pip install flask requests &&
-             python app.py"
     restart: unless-stopped
 
   xteve:
@@ -65,7 +58,7 @@ services:
       - PGID=568  # change to match your group ID
       - TZ=America/Vancouver  # change to your timezone
     volumes:
-      - /mnt/<your_pool>/xteve:/config
+      - ./xteve:/config
     ports:
       - "34400:34400"  # xTeVe web interface
     restart: unless-stopped
@@ -73,28 +66,22 @@ services:
       - plexrelay
 ```
 
-4. Navigate to the installation directory using shell
-`cd /mnt/<your_pool>/plexrelay`
+3. Replace `your_auth_token_here` in the docker-compose.yml with your PPV.wtf auth token ([see below for instructions](#getting-your-auth-token))
 
-5. Create app.py:
-```bash
-nano app.py
-```
-
-6. Paste the Python code into app.py
-
-7. Click Ctrl + O, Enter, Ctrl + X to save and exit
-
-8. Start the containers:
+4. Start the services:
 ```bash
 docker-compose up -d
 ```
 
-9. Access the services:
+5. Access the services:
 - Bridge Status: http://localhost:8880
 - xTeVe Interface: http://localhost:34400/web
 
-10. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
+6. (Optional) Verify M3U playlist works using 
+```bash
+curl http://localhost:8880/playlist.m3u
+```
+
 You should see something like the following:
 ```m3u
 #EXTM3U
@@ -102,7 +89,7 @@ You should see something like the following:
 https://LINKTOSTREAM
 ```
 
-11. Configure xTeVe:
+7. Configure xTeVe:
    - Go to http://localhost:34400/web
    - Navigate to Settings → M3U/XSPF
    - Add M3U Playlist:
@@ -122,7 +109,7 @@ https://LINKTOSTREAM
 5. Click the first element that appears
 6. Click the "Cookies" section
 7. Copy the value of the "ThugSession" value including the quotations - this is your auth token
-8. Replace `your_auth_token_here` in the [docker-compose.yml](#quick-start) with your actual token
+8. Replace `your_auth_token_here` in the docker-compose.yml with your actual token
 
 ## Connecting to Plex
 
