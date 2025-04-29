@@ -2,9 +2,26 @@
 
 A complete IPTV solution that combines a Python bridge service with xTeVe to provide sports streams in M3U and XMLTV formats for Plex and other IPTV players.
 
+## Prerequisites
+
+Before you begin, ensure you have:
+
+1. **Plex Pass Subscription**
+   - Required for Live TV & DVR functionality
+   - Available at [plex.tv/pass](https://plex.tv/pass)
+
+2. **PPV.wtf VIP Account**
+   - Required for accessing the sports streams
+   - Available at [ppv.wtf](https://ppv.wtf)
+
+3. **Docker and Docker Compose**
+   - Required for running the services
+   - Installation instructions available at [docs.docker.com](https://docs.docker.com/get-docker/)
+
 ## Table of Contents
 - [Quick Start](#quick-start)
 - [Getting Your Auth Token](#getting-your-auth-token)
+- [Connecting to Plex](#connecting-to-plex)
 - [Features](#features)
 - [Components](#components)
 - [Endpoints](#endpoints)
@@ -12,9 +29,6 @@ A complete IPTV solution that combines a Python bridge service with xTeVe to pro
 - [Notes](#notes)
 
 ## Quick Start
-**⚠️ Installation Note**
-- This installation guide was designed for a TrueNAS Scale docker installation. YMMV with installation on other platforms
-- This service was designed to use PPV.wtf as the source for streams. Configuration is neeeded for other providers
 
 1. Create the directory structure:
 ```bash
@@ -109,6 +123,39 @@ https://LINKTOSTREAM
 7. Copy the value of the "ThugSession" value including the quotations - this is your auth token
 8. Replace `your_auth_token_here` in the [docker-compose.yml](#quick-start) with your actual token
 
+## Connecting to Plex
+
+1. In xTeVe (http://localhost:34400/web):
+   - Go to Settings → M3U/XSPF
+   - Note the "M3U URL" and "XMLTV URL" values
+   - These will be something like:
+     * M3U: `http://localhost:34400/playlist.m3u`
+     * XMLTV: `http://localhost:34400/epg.xml`
+
+2. In Plex:
+   - Go to Settings → Live TV & DVR
+   - Click "Set Up Plex DVR"
+   - Choose "M3U Playlist" as the source
+   - Enter the M3U URL from xTeVe
+   - Enter the XMLTV URL from xTeVe
+   - Click "Next"
+   - Select the channels you want to include
+   - Click "Next"
+   - Choose your DVR settings (recording quality, etc.)
+   - Click "Next"
+   - Review your settings and click "Finish"
+
+3. Accessing Live TV:
+   - In Plex, go to the "Live TV" section
+   - Your configured channels should now be available
+   - You can watch live streams and schedule recordings
+
+4. Troubleshooting:
+   - If channels don't appear, verify the M3U and XMLTV URLs are accessible
+   - Check xTeVe logs for any stream issues
+   - Ensure your Plex server can reach the xTeVe container
+   - Try refreshing the guide data in Plex if EPG is not showing
+
 ## Features
 
 - Fetches and caches sports streams (NBA, NFL, MLB, NHL) from [PPV.wtf](https://ppv.wtf)
@@ -153,6 +200,7 @@ https://LINKTOSTREAM
 
 ## Notes
 
+- This installation guide was designed for a TrueNAS Scale docker installation. 
 - The bridge service caches stream data and MPEG-TS URLs to reduce API calls
 - Streams are automatically filtered to show only NBA, NFL, MLB, and NHL games
 - Expired games are automatically removed from the playlist
