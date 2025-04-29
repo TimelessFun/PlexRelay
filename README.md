@@ -8,11 +8,12 @@ Before you begin, ensure you have:
 
 1. **Plex Pass Subscription**
    - Required for Live TV & DVR functionality
-   - Available at [plex.tv/pass](https://plex.tv/pass)
+   - Available at [plex.tv/plans](https://www.plex.tv/plans)
 
 2. **PPV.wtf VIP Account**
    - Required for accessing the sports streams
    - Available at [ppv.wtf](https://ppv.wtf)
+   - Alt links @ [ppv.zone](https://ppv.zone)
 
 3. **Docker and Docker Compose**
    - Required for running the services
