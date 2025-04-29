@@ -1,7 +1,6 @@
 import os
 import requests
 import time
-import threading
 import logging
 from datetime import datetime, timezone
 from flask import Flask, Response, abort, request
@@ -19,7 +18,7 @@ REFRESH_INTERVAL_SECONDS = 21600
 # Port for the Flask service to run on
 FLASK_PORT = 8880
 # User-Agent for requests
-USER_AGENT = "XTeVe-Bridge-Service/1.0"
+USER_AGENT = "PlexRelay/1.0"
 # Sports categories to include
 SPORTS_CATEGORIES = ['NBA', 'NFL', 'MLB', 'NHL']
 

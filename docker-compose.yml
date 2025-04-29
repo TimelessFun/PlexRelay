@@ -1,17 +1,32 @@
 version: "3.9"
 
 services:
-  xteve-bridge:
+  plexrelay:
     image: python:3.11-slim
-    container_name: sports_m3u
+    container_name: plexrelay-bridge
     ports:
       - "8880:8880"
     volumes:
-      - /mnt/<your_pool>/xteve-bridge/app:/app
+      - /mnt/<your_pool>/plexrelay/bridge:/app
     working_dir: /app
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
     command: >
       sh -c "pip install flask requests &&
              python app.py"
-    restart: unless-stopped 
+    restart: unless-stopped
+
+  xteve:
+    image: linuxserver/xteve:latest
+    container_name: xteve
+    environment:
+      - PUID=568  # change to match your user ID
+      - PGID=568  # change to match your group ID
+      - TZ=America/Vancouver  # change to your timezone
+    volumes:
+      - /mnt/<your_pool>/xteve/config:/config
+    ports:
+      - "34400:34400"  # xTeVe web interface
+    restart: unless-stopped
+    depends_on:
+      - xteve-bridge 

@@ -1,28 +1,32 @@
-# XTeVe Bridge Service
+# PlexRelay
 
-A Flask-based service that bridges the PPV.wtf API to provide sports streams in M3U and XMLTV formats for XTeVe and other IPTV players.
+A complete IPTV solution that combines a Python bridge service with xTeVe to provide sports streams in M3U and XMLTV formats for Plex and other IPTV players.
 
 ## Quick Start
+
 **⚠️ Installation Note**
-This installation guide was designed for a TrueNAS Scale docker intallation.
-The code will work fine on other systems but the installation instructions will be different.
+- This installation guide was designed for a TrueNAS Scale docker installation. YMMV with installation on other platforms
+- This service was designed to use PPV.wtf as the source for streams. Configuration is neeeded for other providers
+
 
 1. Create the directory structure:
 ```bash
-mkdir -p /mnt/<your_pool>/xteve_bridge/app
+mkdir -p /mnt/<your_pool>/plexrelay/bridge
+mkdir -p /mnt/<your_pool>/xteve/config
 ```
 
 2. Paste the following content:
 ```yaml
 version: "3.9"
+
 services:
-  xteve-bridge:
+  plexrelay:
     image: python:3.11-slim
-    container_name: xteve_bridge
+    container_name: plexrelay-bridge
     ports:
       - "8880:8880"
     volumes:
-      - /mnt/<your_pool>/xteve_bridge/app:/app
+      - /mnt/<your_pool>/plexrelay/bridge:/app
     working_dir: /app
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
@@ -30,36 +34,63 @@ services:
       sh -c "pip install flask requests &&
              python app.py"
     restart: unless-stopped
+
+  xteve:
+    image: linuxserver/xteve:latest
+    container_name: xteve
+    environment:
+      - PUID=568  # change to match your user ID
+      - PGID=568  # change to match your group ID
+      - TZ=America/Vancouver  # change to your timezone
+    volumes:
+      - /mnt/<your_pool>/xteve/config:/config
+    ports:
+      - "34400:34400"  # xTeVe web interface
+    restart: unless-stopped
+    depends_on:
+      - plexrelay
 ```
-3. cd To the installation directory
-`cd /mnt/<your_pool>/xteve_bridge`
+
+4. Navigate to the installation directory using shell
+`cd /mnt/<your_pool>/plexrelay/bridge`
 
 3. Create app.py:
 ```bash
 nano app.py
 ```
 
-4. Paste the Python code into app.py
+5. Paste the Python code into app.py
 
-5. Click Ctrl + O, Enter, Ctrl + X to save and exit
+6. Click Ctrl + O, Enter, Ctrl + X to save and exit
 
-6. Start the container:
+7. Start the containers:
 ```bash
 docker-compose up -d
 ```
 
-7. Access the following endpoints:
-- Status page: http://localhost:8880
-- M3U Playlist: http://localhost:8880/playlist.m3u
-- XMLTV EPG: http://localhost:8880/epg.xml
+8. Access the services:
+- Bridge Status: http://localhost:8880
+- xTeVe Interface: http://localhost:34400/web
 
-8. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
-You should see something like the following
+9. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
+You should see something like the following:
 ```m3u
 #EXTM3U
 #EXTINF:-1 tvg-id="7304" tvg-name="Minnesota Twins vs. Cleveland Guardians" tvg-logo="https://i.imgur.com/DnxoXh3.png" group-title="MLB",Minnesota Twins vs. Cleveland Guardians
 https://LINKTOSTREAM
 ```
+
+10. Configure xTeVe:
+   - Go to http://localhost:34400/web
+   - Navigate to Settings → M3U/XSPF
+   - Add M3U Playlist:
+     * Name: "PlexRelay"
+     * URL: http://plexrelay:8880/playlist.m3u
+     * EPG URL: http://plexrelay:8880/epg.xml
+   - Click Test, then Save
+   - Go to Mappings to configure your channels
+   - Save your configuration
+
 
 ## Getting Your Auth Token
 
@@ -73,30 +104,51 @@ https://LINKTOSTREAM
 8. Replace `your_auth_token_here` in the docker-compose.yml with your actual token
 
 ## Features
-
 - Fetches and caches sports streams (NBA, NFL, MLB, NHL) from PPV.wtf
 - Provides M3U playlist and XMLTV EPG data
 - Updates stream data every 6 hours
 - Caches MPEG-TS URLs to reduce API calls
 - Filters out expired games automatically
+- Integrates with xTeVe for channel management and EPG
+
+## Components
+
+### PlexRelay Bridge
+- Python-based service that interfaces with PPV.wtf
+- Provides M3U and XMLTV endpoints
+- Accessible at port 8880
+
+### xTeVe
+- Channel management and EPG integration
+- Provides a unified M3U playlist for Plex
+- Web interface for configuration
+- Accessible at port 34400
 
 ## Endpoints
 
+### Bridge Service
 - `/` - Status page showing service information
 - `/playlist.m3u` - M3U playlist of available streams
 - `/epg.xml` - XMLTV EPG data for the streams
 
+### xTeVe
+- `/web` - Web interface for configuration
+- `/playlist.m3u` - Final M3U playlist for Plex
+- `/epg.xml` - Final EPG data for Plex
+
 ## Docker Commands
 
-- Start the service: `docker-compose up -d`
+- Start all services: `docker-compose up -d`
 - View logs: `docker-compose logs -f`
-- Stop the service: `docker-compose down`
-- Restart the service: `docker-compose restart`
+- Stop all services: `docker-compose down`
+- Restart all services: `docker-compose restart`
+- View logs for specific service: `docker-compose logs -f plexrelay` or `docker-compose logs -f xteve`
 
 ## Notes
 
-- The service caches stream data and MPEG-TS URLs to reduce API calls
+- The bridge service caches stream data and MPEG-TS URLs to reduce API calls
 - Streams are automatically filtered to show only NBA, NFL, MLB, and NHL games
 - Expired games are automatically removed from the playlist
 - The service updates every 6 hours to fetch new streams and remove expired ones
 - This service is designed for those with VIP status in PPV.wtf
+- xTeVe provides the final M3U playlist that should be used in Plex
