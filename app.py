@@ -30,7 +30,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cached_data = None # Stores the response from METADATA_API_URL
 cached_mpegts_urls = {} # Cache for MPEG-TS URLs
 last_fetch_time = 0 # Timestamp of the last successful fetch
-fetch_lock = threading.Lock() # Prevents multiple threads from fetching simultaneously
 scheduler = BackgroundScheduler(daemon=True) # Runs fetch_and_cache_data periodically
 app = Flask(__name__) # The Flask web application instance
 

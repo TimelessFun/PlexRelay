@@ -2,11 +2,19 @@
 
 A complete IPTV solution that combines a Python bridge service with xTeVe to provide sports streams in M3U and XMLTV formats for Plex and other IPTV players.
 
-**⚠️ Installation Note ⚠️**
-- This installation guide was designed for a TrueNAS Scale docker installation. YMMV with installation on other platforms
-- This service was designed to use PPV.wtf as the source for streams. Configuration is neeeded for other providers
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Getting Your Auth Token](#getting-your-auth-token)
+- [Features](#features)
+- [Components](#components)
+- [Endpoints](#endpoints)
+- [Docker Commands](#docker-commands)
+- [Notes](#notes)
 
 ## Quick Start
+**⚠️ Installation Note**
+- This installation guide was designed for a TrueNAS Scale docker installation. YMMV with installation on other platforms
+- This service was designed to use PPV.wtf as the source for streams. Configuration is neeeded for other providers
 
 1. Create the directory structure:
 ```bash
@@ -53,25 +61,25 @@ services:
 4. Navigate to the installation directory using shell
 `cd /mnt/<your_pool>/plexrelay`
 
-3. Create app.py:
+5. Create app.py:
 ```bash
 nano app.py
 ```
 
-5. Paste the Python code into app.py
+6. Paste the Python code into app.py
 
-6. Click Ctrl + O, Enter, Ctrl + X to save and exit
+7. Click Ctrl + O, Enter, Ctrl + X to save and exit
 
-7. Start the containers:
+8. Start the containers:
 ```bash
 docker-compose up -d
 ```
 
-8. Access the services:
+9. Access the services:
 - Bridge Status: http://localhost:8880
 - xTeVe Interface: http://localhost:34400/web
 
-9. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
+10. (Optional) Verify M3U playlist works using `curl http://localhost:8880/playlist.m3u`
 You should see something like the following:
 ```m3u
 #EXTM3U
@@ -79,7 +87,7 @@ You should see something like the following:
 https://LINKTOSTREAM
 ```
 
-10. Configure xTeVe:
+11. Configure xTeVe:
    - Go to http://localhost:34400/web
    - Navigate to Settings → M3U/XSPF
    - Add M3U Playlist:
@@ -90,20 +98,20 @@ https://LINKTOSTREAM
    - Go to Mappings to configure your channels
    - Save your configuration
 
-
 ## Getting Your Auth Token
 
-1. Go to https://ppv.wtf and log in to your account
+1. Go to [PPV.wtf](https://ppv.wtf) and log in to your account
 2. Open your browser's Developer Tools (F12 or right-click -> Inspect)
 3. Go to the Network tab
 4. Refresh the page
 5. Click the first element that appears
 6. Click the "Cookies" section
 7. Copy the value of the "ThugSession" value including the quotations - this is your auth token
-8. Replace `your_auth_token_here` in the docker-compose.yml with your actual token
+8. Replace `your_auth_token_here` in the [docker-compose.yml](#quick-start) with your actual token
 
 ## Features
-- Fetches and caches sports streams (NBA, NFL, MLB, NHL) from PPV.wtf
+
+- Fetches and caches sports streams (NBA, NFL, MLB, NHL) from [PPV.wtf](https://ppv.wtf)
 - Provides M3U playlist and XMLTV EPG data
 - Updates stream data every 6 hours
 - Caches MPEG-TS URLs to reduce API calls
@@ -113,7 +121,7 @@ https://LINKTOSTREAM
 ## Components
 
 ### PlexRelay Bridge
-- Python-based service that interfaces with PPV.wtf
+- Python-based service that interfaces with [PPV.wtf](https://ppv.wtf)
 - Provides M3U and XMLTV endpoints
 - Accessible at port 8880
 
@@ -149,5 +157,5 @@ https://LINKTOSTREAM
 - Streams are automatically filtered to show only NBA, NFL, MLB, and NHL games
 - Expired games are automatically removed from the playlist
 - The service updates every 6 hours to fetch new streams and remove expired ones
-- This service is designed for those with VIP status in PPV.wtf
+- This service is designed for those with VIP status in [PPV.wtf](https://ppv.wtf)
 - xTeVe provides the final M3U playlist that should be used in Plex
