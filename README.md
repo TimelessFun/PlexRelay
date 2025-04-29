@@ -8,7 +8,7 @@ Before you begin, ensure you have:
 
 1. **Plex Pass Subscription**
    - Required for Live TV & DVR functionality
-   - Available at [plex.tv/plans](https://plex.tv/plans)
+   - Available at [plex.tv/plans](https://www.plex.tv/plans)
 
 2. **PPV.wtf VIP Account**
    - Required for accessing the sports streams
