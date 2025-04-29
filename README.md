@@ -54,7 +54,7 @@ services:
     restart: unless-stopped
 
   xteve:
-    image: linuxserver/xteve:latest
+    image: alturismo/xteve:latest
     container_name: xteve
     environment:
       - PUID=568  # change to match your user ID
