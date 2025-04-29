@@ -42,7 +42,7 @@ version: "3.9"
 
 services:
   plexrelay:
-    image: ghcr.io/oliverp/plexrelay:latest
+    image: ghcr.io/timelessfun/plexrelay:latest
     container_name: plexrelay-bridge
     ports:
       - "8880:8880"
