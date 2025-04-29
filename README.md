@@ -2,12 +2,11 @@
 
 A complete IPTV solution that combines a Python bridge service with xTeVe to provide sports streams in M3U and XMLTV formats for Plex and other IPTV players.
 
-## Quick Start
-
-**⚠️ Installation Note**
+**⚠️ Installation Note ⚠️**
 - This installation guide was designed for a TrueNAS Scale docker installation. YMMV with installation on other platforms
 - This service was designed to use PPV.wtf as the source for streams. Configuration is neeeded for other providers
 
+## Quick Start
 
 1. Create the directory structure:
 ```bash
