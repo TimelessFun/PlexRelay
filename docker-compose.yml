@@ -13,14 +13,14 @@ services:
     restart: unless-stopped
 
   xteve:
-    image: linuxserver/xteve:latest
+    image: alturismo/xteve:latest
     container_name: xteve
     environment:
       - PUID=568  # change to match your user ID
       - PGID=568  # change to match your group ID
       - TZ=America/Vancouver  # change to your timezone
     volumes:
-      - ./xteve:/config
+      - /mnt/<yourpool>/xteve:/config
     ports:
       - "34400:34400"  # xTeVe web interface
     restart: unless-stopped
