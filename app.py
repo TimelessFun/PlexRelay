@@ -13,7 +13,7 @@ from xml.dom import minidom # For pretty printing XML
 METADATA_API_URL = "https://ppv.wtf/api/streams" # For the main list
 STREAM_DETAIL_URL_TEMPLATE = "https://ppv.wtf/api/streams/{stream_id}" # For individual stream details
 # Auth Token for API access
-AUTH_TOKEN = "g2tPm0NL1hIF21KZ2sdpL88lbVwfKGbE1Hwoa6r0gP048YUxCxX3vIWEVjJ6Md1kbdLbJKlRpoJ1vQfv409tY7thtnm2hgu6zAr1RlChI44ST0GkVJII8Y8K8hwkQRMH" # Replace with your actual token
+AUTH_TOKEN = os.environ.get("PPV_AUTH_TOKEN")
 # How often to refresh data from the API (in seconds) - 6 hours = 21600 seconds
 REFRESH_INTERVAL_SECONDS = 21600
 # Port for the Flask service to run on

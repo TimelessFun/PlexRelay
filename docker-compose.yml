@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  xteve-bridge:
+    image: python:3.11-slim
+    container_name: sports_m3u
+    ports:
+      - "8880:8880"
+    volumes:
+      - /mnt/<your_pool>/xteve-bridge/app:/app
+    working_dir: /app
+    environment:
+      - PPV_AUTH_TOKEN=your_auth_token_here
+    command: >
+      sh -c "pip install flask requests &&
+             python app.py"
+    restart: unless-stopped 
