@@ -33,10 +33,11 @@ Before you begin, ensure you have:
 
 1. Create the directory structure:
 ```bash
-mkdir /mnt/<yourpool>/plexrelay && cd plexrelay
+mkdir -p /mnt/<yourpool>/plexrelay
+mkdir -p /mnt/<yourpool>/xteve
 ```
 
-2. Create a docker-compose.yml file:
+2. Create a docker-compose.yml file and paste the following content:
 ```yaml
 version: "3.9"
 
@@ -46,6 +47,8 @@ services:
     container_name: plexrelay-bridge
     ports:
       - "8880:8880"
+    volumes:
+      - /mnt/<yourpool>/plexrelay:/app/data
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
     restart: unless-stopped
@@ -66,7 +69,9 @@ services:
       - plexrelay
 ```
 
-3. Replace `your_auth_token_here` in the docker-compose.yml with your PPV.wtf auth token ([see below for instructions](#getting-your-auth-token))
+3. Replace the following in the docker-compose.yml:
+   - `your_auth_token_here` with your PPV.wtf auth token ([see below for instructions](#getting-your-auth-token))
+   - `<yourpool>` with your actual storage pool name
 
 4. Start the services:
 ```bash
@@ -195,3 +200,15 @@ https://LINKTOSTREAM
 - The service updates every 6 hours to fetch new streams and remove expired ones
 - This service is designed for those with VIP status in [PPV.wtf](https://ppv.wtf)
 - xTeVe provides the final M3U playlist that should be used in Plex
+
+## Storage and Caching
+
+The PlexRelay service stores its cache data in the `/mnt/<yourpool>/plexrelay` directory. This includes:
+- Stream information cache
+- MPEG-TS URL cache
+- All cached data is automatically refreshed every 6 hours
+
+This persistent storage ensures that:
+- The service starts up quickly using cached data
+- Stream information is preserved across container restarts
+- API calls are minimized by using cached data

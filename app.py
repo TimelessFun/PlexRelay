@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 import time
 import logging
@@ -9,6 +10,13 @@ from xml.etree import ElementTree as ET
 from xml.dom import minidom # For pretty printing XML
 
 # --- Configuration ---
+DATA_DIR = "/app/data"  # Base directory for storing data
+os.makedirs(DATA_DIR, exist_ok=True)  # Ensure data directory exists
+
+# Cache file paths
+CACHE_FILE = os.path.join(DATA_DIR, "stream_cache.json")
+MPEGTS_CACHE_FILE = os.path.join(DATA_DIR, "mpegts_cache.json")
+
 METADATA_API_URL = "https://ppv.wtf/api/streams" # For the main list
 STREAM_DETAIL_URL_TEMPLATE = "https://ppv.wtf/api/streams/{stream_id}" # For individual stream details
 # Auth Token for API access
@@ -51,6 +59,25 @@ def format_xmltv_time(unix_timestamp):
         logging.error(f"Error formatting timestamp {unix_timestamp}: {e}")
         return "" # Return empty string on error
 
+def load_from_cache():
+    """Load cached data from disk at startup"""
+    global cached_data, cached_mpegts_urls, last_fetch_time
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'r') as f:
+                cached_data = json.load(f)
+            logging.info("Loaded stream cache from disk")
+        
+        if os.path.exists(MPEGTS_CACHE_FILE):
+            with open(MPEGTS_CACHE_FILE, 'r') as f:
+                cached_mpegts_urls = json.load(f)
+            logging.info("Loaded MPEGTS cache from disk")
+            
+        if cached_data:
+            last_fetch_time = os.path.getmtime(CACHE_FILE)
+    except Exception as e:
+        logging.error(f"Error loading cache files: {e}")
+
 def get_mpegts_url(stream_id, auth_token):
     """
     Fetches the detailed stream information and extracts the MPEG-TS URL.
@@ -82,23 +109,19 @@ def get_mpegts_url(stream_id, auth_token):
         # Check if the request was successful according to the API's own flag
         if data.get("success"):
             # Navigate the JSON structure to find the desired URL
-            # Use .get() for safer access to nested dictionaries
             stream_data = data.get("data")
             if stream_data:
-                mpegts_url = stream_data.get("vip_mpegts") # Extract the URL
+                mpegts_url = stream_data.get("vip_mpegts")
                 if mpegts_url:
                     logging.info(f"Successfully fetched MPEG-TS URL for stream {stream_id}")
-                    return mpegts_url # Return the found URL
+                    return mpegts_url
                 else:
-                    # Log if 'vip_mpegts' key is missing in the 'data' object
                     logging.warning(f"'vip_mpegts' key not found in API response data for stream {stream_id}.")
                     return None
             else:
-                # Log if 'data' key is missing in the main response object
                 logging.warning(f"'data' key not found in API response for stream {stream_id}.")
                 return None
         else:
-            # Log if the API response indicates failure (success: false)
             logging.error(f"API indicated failure for stream {stream_id}. Response: {data}")
             return None
 
@@ -122,8 +145,6 @@ def get_mpegts_url(stream_id, auth_token):
 
 def fetch_and_cache_data():
     """Fetches the main stream list data from the metadata API and updates the cache."""
-    global cached_data, last_fetch_time, cached_mpegts_urls
-    # Use a lock to prevent concurrent fetches, ensuring data consistency
     global cached_data, last_fetch_time, cached_mpegts_urls
 
     try:
@@ -149,6 +170,16 @@ def fetch_and_cache_data():
                         mpegts_url = get_mpegts_url(stream_id, AUTH_TOKEN)
                         if mpegts_url:
                             cached_mpegts_urls[str(stream_id)] = mpegts_url
+
+            # Save caches to disk
+            try:
+                with open(CACHE_FILE, 'w') as f:
+                    json.dump(cached_data, f)
+                with open(MPEGTS_CACHE_FILE, 'w') as f:
+                    json.dump(cached_mpegts_urls, f)
+                logging.info("Successfully saved cache files to disk")
+            except Exception as e:
+                logging.error(f"Error saving cache files: {e}")
 
             logging.info("Successfully updated cached data and MPEG-TS URLs.")
         else:
@@ -177,7 +208,6 @@ def index():
     # Count categories and streams if data is cached
     if cached_data and 'streams' in cached_data:
         num_categories = len(cached_data['streams'])
-        # Sum up the number of streams in each category
         num_streams = sum(len(cat.get('streams', [])) for cat in cached_data['streams'])
     elif not cached_data:
         status = "Error: Main stream list data not cached"
@@ -335,12 +365,16 @@ if __name__ == '__main__':
     # Check for the essential auth token at startup
     if not AUTH_TOKEN:
         logging.error("CRITICAL: PPV_AUTH_TOKEN environment variable not set! Service may not function correctly.")
-        # Allowing the service to start to show the status page error,
-        # but M3U generation will fail.
 
-    # Perform an initial fetch of the main stream list immediately on startup
-    logging.info("Performing initial data fetch on startup...")
-    fetch_and_cache_data()
+    # Load any existing cache from disk
+    load_from_cache()
+
+    # Perform an initial fetch of the main stream list if needed
+    if not cached_data:
+        logging.info("No cached data found, performing initial data fetch...")
+        fetch_and_cache_data()
+    else:
+        logging.info("Loaded existing cache, scheduling next update...")
 
     # Schedule the background task to fetch the main stream list periodically
     scheduler.add_job(
