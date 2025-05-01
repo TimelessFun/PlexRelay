@@ -22,7 +22,7 @@ STREAM_DETAIL_URL_TEMPLATE = "https://ppv.wtf/api/streams/{stream_id}" # For ind
 # Auth Token for API access
 AUTH_TOKEN = os.environ.get("PPV_AUTH_TOKEN")
 # How often to refresh data from the API (in seconds) - 6 hours = 21600 seconds
-REFRESH_INTERVAL_SECONDS = 21600
+REFRESH_INTERVAL_SECONDS = 10800
 # Port for the Flask service to run on
 FLASK_PORT = 8880
 # User-Agent for requests
@@ -292,6 +292,11 @@ def generate_xmltv():
 
     # Create the root <tv> element for the XMLTV document
     tv_root = ET.Element('tv', {'generator-info-name': 'PPVBridgeService/1.0'})
+
+    # Add Cache-Control headers to prevent Plex from caching too long
+    response = Response(mimetype='application/xml')
+    response.headers['Cache-Control'] = 'no-cache, max-age=0'
+    
     seen_channel_ids = set() # Keep track of channel IDs already added
     programme_count = 0 # Counter for programme entries added
 
@@ -358,7 +363,8 @@ def generate_xmltv():
     # Log the result of EPG generation
     logging.info(f"Generated XMLTV EPG with {len(seen_channel_ids)} channels and {programme_count} programmes.")
     # Return the XML content with the correct MIME type
-    return Response(pretty_xml, mimetype='application/xml')
+    response.data = pretty_xml
+    return response
 
 # --- Main Execution Block ---
 if __name__ == '__main__':

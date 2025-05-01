@@ -61,7 +61,7 @@ services:
       - PGID=568  # change to match your group ID
       - TZ=America/Vancouver  # change to your timezone
     volumes:
-      - ./xteve:/config
+      - /mnt/<yourpool>/xteve:/config
     ports:
       - "34400:34400"  # xTeVe web interface
     restart: unless-stopped
