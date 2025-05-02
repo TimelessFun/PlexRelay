@@ -10,6 +10,7 @@ services:
       - /mnt/<yourpool>/plexrelay:/app/data
     environment:
       - PPV_AUTH_TOKEN=your_auth_token_here
+      - TZ=America/Vancouver  # change to your timezone
     restart: unless-stopped
 
   xteve:

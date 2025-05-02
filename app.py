@@ -21,7 +21,7 @@ METADATA_API_URL = "https://ppv.wtf/api/streams" # For the main list
 STREAM_DETAIL_URL_TEMPLATE = "https://ppv.wtf/api/streams/{stream_id}" # For individual stream details
 # Auth Token for API access
 AUTH_TOKEN = os.environ.get("PPV_AUTH_TOKEN")
-# How often to refresh data from the API (in seconds) - 6 hours = 21600 seconds
+# How often to refresh data from the API (in seconds) - 3 hours = 10800 seconds
 REFRESH_INTERVAL_SECONDS = 10800
 # Port for the Flask service to run on
 FLASK_PORT = 8880
@@ -31,8 +31,13 @@ USER_AGENT = "PlexRelay/1.0"
 SPORTS_CATEGORIES = ['NBA', 'NFL', 'MLB', 'NHL']
 
 # --- Logging Setup ---
-# Configure logging to output informational messages and errors
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configure logging to output informational messages and errors with local timezone
+logging.Formatter.converter = lambda *args: datetime.now(timezone.utc).astimezone().timetuple()
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S %z'
+)
 
 # --- Globals for Caching and Scheduling ---
 from threading import Lock # Import Lock for thread safety
@@ -285,17 +290,23 @@ def generate_m3u():
 @app.route('/epg.xml')
 def generate_xmltv():
     """Generates the XMLTV EPG file dynamically."""
+    # Force refresh if requested
+    if request.args.get('force_refresh'):
+        fetch_and_cache_data()
+
     # Check if the main stream list data is cached
     if not cached_data:
         logging.warning("XMLTV requested but main list data not cached yet.")
-        abort(503, "Data not available yet, please try again shortly.") # Service Unavailable
+        abort(503, "Data not available yet, please try again shortly.")
 
     # Create the root <tv> element for the XMLTV document
     tv_root = ET.Element('tv', {'generator-info-name': 'PPVBridgeService/1.0'})
 
     # Add Cache-Control headers to prevent Plex from caching too long
     response = Response(mimetype='application/xml')
-    response.headers['Cache-Control'] = 'no-cache, max-age=0'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
     
     seen_channel_ids = set() # Keep track of channel IDs already added
     programme_count = 0 # Counter for programme entries added
