@@ -2,10 +2,10 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
 
 env:
   REGISTRY: ghcr.io
@@ -29,21 +29,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=sha
+      - name: Set image tags based on branch or tag
+        id: vars
+        run: |
+          REF="${GITHUB_REF#refs/}"
+          if [[ "${REF}" == "heads/dev" ]]; then
+            echo "TAGS=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev" >> $GITHUB_ENV
+          elif [[ "${REF}" == "heads/main" ]]; then
+            echo "TAGS=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_ENV
+          elif [[ "${REF}" == "tags/v"* ]]; then
+            VERSION="${REF#tags/v}"
+            echo "TAGS=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_ENV
+          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.TAGS }}
