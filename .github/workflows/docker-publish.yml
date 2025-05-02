@@ -32,15 +32,16 @@ jobs:
       - name: Set image tags based on branch or tag
         id: vars
         run: |
-          REF="${GITHUB_REF#refs/}"
-          if [[ "${REF}" == "heads/dev" ]]; then
-            echo "TAGS=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev" >> $GITHUB_ENV
-          elif [[ "${REF}" == "heads/main" ]]; then
-            echo "TAGS=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_ENV
-          elif [[ "${REF}" == "tags/v"* ]]; then
-            VERSION="${REF#tags/v}"
-            echo "TAGS=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_ENV
-          fi
+            REPO_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+            REF="${GITHUB_REF#refs/}"
+            if [[ "${REF}" == "heads/dev" ]]; then
+              echo "TAGS=ghcr.io/${REPO_LOWER}:dev" >> $GITHUB_ENV
+            elif [[ "${REF}" == "heads/main" ]]; then
+              echo "TAGS=ghcr.io/${REPO_LOWER}:latest" >> $GITHUB_ENV
+            elif [[ "${REF}" == "tags/v"* ]]; then
+              VERSION="${REF#tags/v}"
+              echo "TAGS=ghcr.io/${REPO_LOWER}:${VERSION},ghcr.io/${REPO_LOWER}:latest" >> $GITHUB_ENV
+            fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
