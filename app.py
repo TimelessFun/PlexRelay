@@ -242,35 +242,34 @@ def index():
 @app.route('/playlist.m3u')
 def generate_m3u():
     """Generates the M3U playlist dynamically."""
-    # Check if essential data and token are available
     if not cached_data:
         logging.warning("M3U requested but main list data not cached yet.")
-        abort(503, "Data not available yet, please try again shortly.") # Service Unavailable
+        abort(503, "Data not available yet, please try again shortly.")
     if not AUTH_TOKEN:
          logging.error("M3U generation failed: Auth token missing.")
-         abort(500, "Authentication token not configured on server.") # Internal Server Error
+         abort(500, "Authentication token not configured on server.")
 
-    m3u_content = ["#EXTM3U"] # Start with the required M3U header
-    stream_count = 0 # Counter for successfully added streams
+    m3u_content = ["#EXTM3U"]
+    stream_count = 0
 
     categories = cached_data.get('streams', [])
-    # Iterate through each category and its streams from the cached main list
     for category in categories:
         category_name = category.get('category', 'Unknown Category')
         streams = category.get('streams', [])
         for stream in streams:
             stream_id = stream.get('id')
-            stream_name = stream.get('name', f'Stream {stream_id}')
-            poster_url = stream.get('poster', '')
-            # Use stream ID as tvg-id for reliable EPG mapping in clients like Plex/XTeVe
-            tvg_id = str(stream_id) if stream_id else ""
-
-            # Skip streams that don't have an ID in the main list data
             if not stream_id:
                 logging.warning(f"Skipping stream with missing ID in category '{category_name}'. Data: {stream}")
                 continue
+                
+            # Ensure consistent ID format between M3U and XMLTV
+            tvg_id = str(stream_id).strip()
+            stream_name = stream.get('name', f'Stream {tvg_id}')
+            poster_url = stream.get('poster', '')
+            
+            # Log the tvg-id being used for debugging
+            logging.debug(f"M3U: Adding stream '{stream_name}' with tvg-id='{tvg_id}'")
 
-            # Use cached MPEG-TS URL
             mpegts_url = cached_mpegts_urls.get(str(stream_id))
             if mpegts_url:
                 extinf_line = (
@@ -278,102 +277,88 @@ def generate_m3u():
                     f'tvg-logo="{poster_url}" group-title="{category_name}",{stream_name}'
                 )
                 m3u_content.append(extinf_line)
-                m3u_content.append(mpegts_url) # Add the stream URL
+                m3u_content.append(mpegts_url)
                 stream_count += 1
             else:
-                logging.warning(f"No cached MPEG-TS URL found for stream ID {stream_id} ('{stream_name}'), skipping M3U entry.")
+                logging.warning(f"No cached MPEG-TS URL found for stream ID {tvg_id} ('{stream_name}'), skipping M3U entry.")
 
     logging.info(f"Generated M3U playlist with {stream_count} streams.")
     return Response('\n'.join(m3u_content), mimetype='application/vnd.apple.mpegurl')
 
-
 @app.route('/epg.xml')
 def generate_xmltv():
     """Generates the XMLTV EPG file dynamically."""
-    # Force refresh if requested
     if request.args.get('force_refresh'):
         fetch_and_cache_data()
 
-    # Check if the main stream list data is cached
     if not cached_data:
         logging.warning("XMLTV requested but main list data not cached yet.")
         abort(503, "Data not available yet, please try again shortly.")
 
-    # Create the root <tv> element for the XMLTV document
     tv_root = ET.Element('tv', {'generator-info-name': 'PPVBridgeService/1.0'})
 
-    # Add Cache-Control headers to prevent Plex from caching too long
     response = Response(mimetype='application/xml')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     
-    seen_channel_ids = set() # Keep track of channel IDs already added
-    programme_count = 0 # Counter for programme entries added
+    seen_channel_ids = set()
+    programme_count = 0
 
     categories = cached_data.get('streams', [])
-    # Iterate through categories and streams from the cached main list
     for category in categories:
         streams = category.get('streams', [])
         for stream in streams:
-            # Extract stream details needed for EPG
             stream_id = stream.get('id')
-            stream_name = stream.get('name', f'Stream {stream_id}')
+            if not stream_id:
+                logging.warning(f"Skipping EPG entry for stream with missing ID in category '{category.get('category')}'. Data: {stream}")
+                continue
+
+            # Ensure consistent ID format between M3U and XMLTV
+            channel_id = str(stream_id).strip()
+            stream_name = stream.get('name', f'Stream {channel_id}')
             poster_url = stream.get('poster', '')
             category_name = stream.get('category_name', category.get('category', 'Unknown'))
             tag = stream.get('tag', '')
-            starts_at = stream.get('starts_at') # Unix timestamp
-            ends_at = stream.get('ends_at') # Unix timestamp
+            starts_at = stream.get('starts_at')
+            ends_at = stream.get('ends_at')
 
-            # Skip entries without a stream ID
-            if not stream_id:
-                logging.warning(f"Skipping EPG entry for stream with missing ID in category '{category_name}'. Data: {stream}")
-                continue
+            # Log the channel ID being used for debugging
+            logging.debug(f"XMLTV: Adding channel '{stream_name}' with id='{channel_id}'")
 
-            channel_id = str(stream_id) # Use stream ID as the channel ID for mapping
-
-            # Add the <channel> element to the XML if not already added
             if channel_id not in seen_channel_ids:
                 channel_el = ET.SubElement(tv_root, 'channel', {'id': channel_id})
                 ET.SubElement(channel_el, 'display-name').text = stream_name
-                if poster_url: # Add icon if available
+                if poster_url:
                     ET.SubElement(channel_el, 'icon', {'src': poster_url})
-                seen_channel_ids.add(channel_id) # Mark channel as added
+                seen_channel_ids.add(channel_id)
 
-            # Add the <programme> element for the specific event/stream time
-            start_time_str = format_xmltv_time(starts_at) # Format start time
-            end_time_str = format_xmltv_time(ends_at) # Format end time
+            start_time_str = format_xmltv_time(starts_at)
+            end_time_str = format_xmltv_time(ends_at)
 
-            # Only add the programme entry if both start and end times are valid
             if start_time_str and end_time_str:
                 programme_el = ET.SubElement(tv_root, 'programme', {
                     'start': start_time_str,
                     'stop': end_time_str,
-                    'channel': channel_id # Link programme to its channel ID
+                    'channel': channel_id
                 })
-                # Add programme details
                 ET.SubElement(programme_el, 'title', {'lang': 'en'}).text = stream_name
-                description = f"{category_name}" # Start description with category
+                description = f"{category_name}"
                 if tag:
-                    description += f" - {tag}" # Append tag if present
+                    description += f" - {tag}"
                 ET.SubElement(programme_el, 'desc', {'lang': 'en'}).text = description
-                if poster_url: # Add icon if available
+                if poster_url:
                     ET.SubElement(programme_el, 'icon', {'src': poster_url})
                 ET.SubElement(programme_el, 'category', {'lang': 'en'}).text = category_name
-                # Add other elements like episode-num, rating, etc. if available/needed
                 programme_count += 1
             else:
-                 # Log if a programme entry is skipped due to time issues
-                 logging.warning(f"Skipping programme EPG entry for stream {stream_id} ('{stream_name}') due to missing/invalid start/end times.")
+                logging.warning(f"Skipping programme EPG entry for stream {channel_id} ('{stream_name}') due to missing/invalid start/end times.")
 
-    # Convert the ElementTree structure to a nicely formatted XML string
     rough_string = ET.tostring(tv_root, 'utf-8')
     reparsed = minidom.parseString(rough_string)
     pretty_xml = reparsed.toprettyxml(indent="  ", encoding="utf-8")
 
-    # Log the result of EPG generation
     logging.info(f"Generated XMLTV EPG with {len(seen_channel_ids)} channels and {programme_count} programmes.")
-    # Return the XML content with the correct MIME type
     response.data = pretty_xml
     return response
 
