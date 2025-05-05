@@ -17,6 +17,14 @@ os.makedirs(DATA_DIR, exist_ok=True)  # Ensure data directory exists
 CACHE_FILE = os.path.join(DATA_DIR, "stream_cache.json")
 MPEGTS_CACHE_FILE = os.path.join(DATA_DIR, "mpegts_cache.json")
 
+# Static channel configuration
+STATIC_CHANNELS = {
+    'NBA': {'count': 5, 'base_id': 1000},  # NBA channels: 1000-1004
+    'NFL': {'count': 8, 'base_id': 2000},  # NFL channels: 2000-2007
+    'MLB': {'count': 5, 'base_id': 3000},  # MLB channels: 3000-3004
+    'NHL': {'count': 5, 'base_id': 4000},  # NHL channels: 4000-4004
+}
+
 METADATA_API_URL = "https://ppv.wtf/api/streams" # For the main list
 STREAM_DETAIL_URL_TEMPLATE = "https://ppv.wtf/api/streams/{stream_id}" # For individual stream details
 # Auth Token for API access
@@ -49,6 +57,41 @@ scheduler = BackgroundScheduler(daemon=True) # Runs fetch_and_cache_data periodi
 app = Flask(__name__) # The Flask web application instance
 
 # --- Helper Functions ---
+
+def get_static_channel_id(category, index):
+    """Returns a static channel ID for a given category and index"""
+    if category not in STATIC_CHANNELS:
+        return None
+    config = STATIC_CHANNELS[category]
+    if index >= config['count']:
+        return None
+    return str(config['base_id'] + index)
+
+def map_streams_to_static_channels(streams_by_category):
+    """Maps dynamic streams to static channel IDs"""
+    mapped_streams = {}
+    
+    for category, streams in streams_by_category.items():
+        if category not in STATIC_CHANNELS:
+            continue
+            
+        # Sort streams by start time to prioritize upcoming games
+        sorted_streams = sorted(streams, key=lambda x: x.get('starts_at', 0))
+        
+        # Map streams to static channel slots
+        for idx, stream in enumerate(sorted_streams):
+            if idx >= STATIC_CHANNELS[category]['count']:
+                break
+                
+            static_id = get_static_channel_id(category, idx)
+            if static_id:
+                mapped_streams[static_id] = {
+                    'stream': stream,
+                    'category': category,
+                    'channel_number': idx + 1
+                }
+    
+    return mapped_streams
 
 def format_xmltv_time(unix_timestamp):
     """Converts Unix timestamp to XMLTV UTC time format (YYYYMMDDHHMMSS +0000)"""
@@ -252,37 +295,48 @@ def generate_m3u():
     m3u_content = ["#EXTM3U"]
     stream_count = 0
 
-    categories = cached_data.get('streams', [])
-    for category in categories:
-        category_name = category.get('category', 'Unknown Category')
-        streams = category.get('streams', [])
-        for stream in streams:
-            stream_id = stream.get('id')
-            if not stream_id:
-                logging.warning(f"Skipping stream with missing ID in category '{category_name}'. Data: {stream}")
-                continue
-                
-            # Ensure consistent ID format between M3U and XMLTV
-            tvg_id = str(stream_id).strip()
-            stream_name = stream.get('name', f'Stream {tvg_id}')
-            poster_url = stream.get('poster', '')
-            
-            # Log the tvg-id being used for debugging
-            logging.debug(f"M3U: Adding stream '{stream_name}' with tvg-id='{tvg_id}'")
+    # Organize streams by category
+    streams_by_category = {}
+    for category in cached_data.get('streams', []):
+        category_name = category.get('category')
+        if category_name in STATIC_CHANNELS:
+            streams_by_category[category_name] = category.get('streams', [])
 
-            mpegts_url = cached_mpegts_urls.get(str(stream_id))
-            if mpegts_url:
+    # Map streams to static channels
+    mapped_streams = map_streams_to_static_channels(streams_by_category)
+
+    # Generate M3U entries for all static channels
+    for category, config in STATIC_CHANNELS.items():
+        for idx in range(config['count']):
+            static_id = get_static_channel_id(category, idx)
+            channel_info = mapped_streams.get(static_id)
+            
+            if channel_info:
+                stream = channel_info['stream']
+                stream_name = stream.get('name', f'{category} Channel {idx + 1}')
+                poster_url = stream.get('poster', '')
+                stream_id = stream.get('id')
+                
+                mpegts_url = cached_mpegts_urls.get(str(stream_id))
+                if mpegts_url:
+                    extinf_line = (
+                        f'#EXTINF:-1 tvg-id="{static_id}" tvg-name="{stream_name}" '
+                        f'tvg-logo="{poster_url}" group-title="{category}",{stream_name}'
+                    )
+                    m3u_content.append(extinf_line)
+                    m3u_content.append(mpegts_url)
+                    stream_count += 1
+            else:
+                # Add placeholder for empty channel
                 extinf_line = (
-                    f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{stream_name}" '
-                    f'tvg-logo="{poster_url}" group-title="{category_name}",{stream_name}'
+                    f'#EXTINF:-1 tvg-id="{static_id}" tvg-name="{category} {idx + 1}" '
+                    f'group-title="{category}",{category} Channel {idx + 1} (No Content)'
                 )
                 m3u_content.append(extinf_line)
-                m3u_content.append(mpegts_url)
+                m3u_content.append('http://localhost:8880/empty.ts')  # Placeholder stream URL
                 stream_count += 1
-            else:
-                logging.warning(f"No cached MPEG-TS URL found for stream ID {tvg_id} ('{stream_name}'), skipping M3U entry.")
 
-    logging.info(f"Generated M3U playlist with {stream_count} streams.")
+    logging.info(f"Generated M3U playlist with {stream_count} static channels.")
     return Response('\n'.join(m3u_content), mimetype='application/vnd.apple.mpegurl')
 
 @app.route('/epg.xml')
@@ -296,69 +350,65 @@ def generate_xmltv():
         abort(503, "Data not available yet, please try again shortly.")
 
     tv_root = ET.Element('tv', {'generator-info-name': 'PPVBridgeService/1.0'})
-
+    
     response = Response(mimetype='application/xml')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     
-    seen_channel_ids = set()
+    # First, create all static channels
+    for category, config in STATIC_CHANNELS.items():
+        for idx in range(config['count']):
+            static_id = get_static_channel_id(category, idx)
+            channel_el = ET.SubElement(tv_root, 'channel', {'id': static_id})
+            ET.SubElement(channel_el, 'display-name').text = f'{category} Channel {idx + 1}'
+
+    # Organize streams by category
+    streams_by_category = {}
+    for category in cached_data.get('streams', []):
+        category_name = category.get('category')
+        if category_name in STATIC_CHANNELS:
+            streams_by_category[category_name] = category.get('streams', [])
+
+    # Map streams to static channels
+    mapped_streams = map_streams_to_static_channels(streams_by_category)
     programme_count = 0
 
-    categories = cached_data.get('streams', [])
-    for category in categories:
-        streams = category.get('streams', [])
-        for stream in streams:
-            stream_id = stream.get('id')
-            if not stream_id:
-                logging.warning(f"Skipping EPG entry for stream with missing ID in category '{category.get('category')}'. Data: {stream}")
-                continue
+    # Add programme information for mapped streams
+    for static_id, channel_info in mapped_streams.items():
+        stream = channel_info['stream']
+        category = channel_info['category']
+        
+        stream_name = stream.get('name', f'{category} Channel {channel_info["channel_number"]}')
+        poster_url = stream.get('poster', '')
+        tag = stream.get('tag', '')
+        starts_at = stream.get('starts_at')
+        ends_at = stream.get('ends_at')
 
-            # Ensure consistent ID format between M3U and XMLTV
-            channel_id = str(stream_id).strip()
-            stream_name = stream.get('name', f'Stream {channel_id}')
-            poster_url = stream.get('poster', '')
-            category_name = stream.get('category_name', category.get('category', 'Unknown'))
-            tag = stream.get('tag', '')
-            starts_at = stream.get('starts_at')
-            ends_at = stream.get('ends_at')
+        start_time_str = format_xmltv_time(starts_at)
+        end_time_str = format_xmltv_time(ends_at)
 
-            # Log the channel ID being used for debugging
-            logging.debug(f"XMLTV: Adding channel '{stream_name}' with id='{channel_id}'")
-
-            if channel_id not in seen_channel_ids:
-                channel_el = ET.SubElement(tv_root, 'channel', {'id': channel_id})
-                ET.SubElement(channel_el, 'display-name').text = stream_name
-                if poster_url:
-                    ET.SubElement(channel_el, 'icon', {'src': poster_url})
-                seen_channel_ids.add(channel_id)
-
-            start_time_str = format_xmltv_time(starts_at)
-            end_time_str = format_xmltv_time(ends_at)
-
-            if start_time_str and end_time_str:
-                programme_el = ET.SubElement(tv_root, 'programme', {
-                    'start': start_time_str,
-                    'stop': end_time_str,
-                    'channel': channel_id
-                })
-                ET.SubElement(programme_el, 'title', {'lang': 'en'}).text = stream_name
-                description = f"{category_name}"
-                if tag:
-                    description += f" - {tag}"
-                ET.SubElement(programme_el, 'desc', {'lang': 'en'}).text = description
-                if poster_url:
-                    ET.SubElement(programme_el, 'icon', {'src': poster_url})
-                ET.SubElement(programme_el, 'category', {'lang': 'en'}).text = category_name
-                programme_count += 1
-            else:
-                logging.warning(f"Skipping programme EPG entry for stream {channel_id} ('{stream_name}') due to missing/invalid start/end times.")
+        if start_time_str and end_time_str:
+            programme_el = ET.SubElement(tv_root, 'programme', {
+                'start': start_time_str,
+                'stop': end_time_str,
+                'channel': static_id
+            })
+            ET.SubElement(programme_el, 'title', {'lang': 'en'}).text = stream_name
+            description = category
+            if tag:
+                description += f" - {tag}"
+            ET.SubElement(programme_el, 'desc', {'lang': 'en'}).text = description
+            if poster_url:
+                ET.SubElement(programme_el, 'icon', {'src': poster_url})
+            ET.SubElement(programme_el, 'category', {'lang': 'en'}).text = category
+            programme_count += 1
 
     rough_string = ET.tostring(tv_root, 'utf-8')
     reparsed = minidom.parseString(rough_string)
     pretty_xml = reparsed.toprettyxml(indent="  ", encoding="utf-8")
 
-    logging.info(f"Generated XMLTV EPG with {len(seen_channel_ids)} channels and {programme_count} programmes.")
+    logging.info(f"Generated XMLTV EPG with {len(STATIC_CHANNELS)} categories and {programme_count} programmes.")
     response.data = pretty_xml
     return response
 
