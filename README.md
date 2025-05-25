@@ -135,6 +135,7 @@ https://LINKTOSTREAM
    - Select the channels you want to include
    - Click "Next"
    - Choose your DVR settings (recording quality, etc.)
+   - **Make sure that you change the Guide Refresh Interval to be 1 hour** This ensures that the listings will show up on plex as they are added
    - Click "Next"
    - Review your settings and click "Finish"
 
