@@ -4,10 +4,11 @@ import requests
 import time
 import logging
 from datetime import datetime, timezone
-from flask import Flask, Response, abort, request
+from flask import Flask, Response, abort, request, redirect
 from apscheduler.schedulers.background import BackgroundScheduler
 from xml.etree import ElementTree as ET
 from xml.dom import minidom # For pretty printing XML
+import hashlib
 
 # --- Configuration ---
 DATA_DIR = "/app/data"  # Base directory for storing data
@@ -235,9 +236,25 @@ def index():
         <hr>
         <p><a href="/playlist.m3u">M3U Playlist (/playlist.m3u)</a></p>
         <p><a href="/epg.xml">XMLTV EPG (/epg.xml)</a></p>
+        <form action="/playlist.m3u">
+            <button type="submit">Refresh M3U Playlist</button>
+        </form>
+        <form action="/epg.xml">
+            <input type="hidden" name="force_refresh" value="1">
+            <button type="submit">Refresh EPG</button>
+        </form>
+        <form action="/refresh">
+            <button type="submit">Force Refresh EPG + M3U</button>
+        </form>
     </body>
     </html>
     """
+@app.route('/refresh')
+def manual_refresh():
+    """Manually triggers a refresh of the EPG and M3U playlist."""
+    logging.info("Manual refresh requested, fetching main stream list data...")
+    fetch_and_cache_data()
+    return redirect('/')
 
 @app.route('/playlist.m3u')
 def generate_m3u():
@@ -257,20 +274,21 @@ def generate_m3u():
         category_name = category.get('category', 'Unknown Category')
         streams = category.get('streams', [])
         for stream in streams:
-            stream_id = stream.get('id')
-            if not stream_id:
-                logging.warning(f"Skipping stream with missing ID in category '{category_name}'. Data: {stream}")
+            name = stream.get('name', '')
+            start_time = stream.get('starts_at') or '0'
+            base_string = f"{name}_{start_time}"
+            tvg_id = str(int(hashlib.sha256(base_string.encode()).hexdigest(), 16) % 10**10)
+            stream_name_slug = name.replace(' ', '_').lower()
+            if not stream_name_slug:
+                logging.warning(f"Skipping stream with missing name in category '{category_name}'. Data: {stream}")
                 continue
-                
-            # Ensure consistent ID format between M3U and XMLTV
-            tvg_id = str(stream_id).strip()
-            stream_name = stream.get('name', f'Stream {tvg_id}')
+            stream_name = name if name else f'Stream {tvg_id}'
             poster_url = stream.get('poster', '')
-            
             # Log the tvg-id being used for debugging
             logging.debug(f"M3U: Adding stream '{stream_name}' with tvg-id='{tvg_id}'")
 
-            mpegts_url = cached_mpegts_urls.get(str(stream_id))
+            stream_id = stream.get('id')
+            mpegts_url = cached_mpegts_urls.get(str(stream_id)) if stream_id else None
             if mpegts_url:
                 extinf_line = (
                     f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{stream_name}" '
@@ -280,7 +298,7 @@ def generate_m3u():
                 m3u_content.append(mpegts_url)
                 stream_count += 1
             else:
-                logging.warning(f"No cached MPEG-TS URL found for stream ID {tvg_id} ('{stream_name}'), skipping M3U entry.")
+                logging.warning(f"No cached MPEG-TS URL found for stream ID {stream_id} ('{stream_name}'), skipping M3U entry.")
 
     logging.info(f"Generated M3U playlist with {stream_count} streams.")
     return Response('\n'.join(m3u_content), mimetype='application/vnd.apple.mpegurl')
@@ -309,14 +327,16 @@ def generate_xmltv():
     for category in categories:
         streams = category.get('streams', [])
         for stream in streams:
-            stream_id = stream.get('id')
-            if not stream_id:
-                logging.warning(f"Skipping EPG entry for stream with missing ID in category '{category.get('category')}'. Data: {stream}")
+            name = stream.get('name', '')
+            start_time = stream.get('starts_at') or '0'
+            base_string = f"{name}_{start_time}"
+            channel_id = str(int(hashlib.sha256(base_string.encode()).hexdigest(), 16) % 10**10)
+            stream_name_slug = name.replace(' ', '_').lower()
+            if not stream_name_slug:
+                logging.warning(f"Skipping EPG entry for stream with missing name in category '{category.get('category')}'. Data: {stream}")
                 continue
 
-            # Ensure consistent ID format between M3U and XMLTV
-            channel_id = str(stream_id).strip()
-            stream_name = stream.get('name', f'Stream {channel_id}')
+            stream_name = name if name else f'Stream {channel_id}'
             poster_url = stream.get('poster', '')
             category_name = stream.get('category_name', category.get('category', 'Unknown'))
             tag = stream.get('tag', '')
