@@ -19,7 +19,7 @@ CACHE_FILE = os.path.join(DATA_DIR, "stream_cache.json")
 MPEGTS_CACHE_FILE = os.path.join(DATA_DIR, "mpegts_cache.json")
 
 METADATA_API_URL = "https://ppv.wtf/api/streams" # For the main list
-STREAM_DETAIL_URL_TEMPLATE = "https://ppv.wtf/api/streams/{stream_id}" # For individual stream details
+STREAM_DETAIL_URL_TEMPLATE = "https://ppvs.su/api/streams/{stream_id}" # For individual stream details
 # Auth Token for API access
 AUTH_TOKEN = os.environ.get("PPV_AUTH_TOKEN")
 # How often to refresh data from the API (in seconds) - 3 hours = 10800 seconds
